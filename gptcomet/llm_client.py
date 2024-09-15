@@ -1,12 +1,13 @@
+import logging
 import typing as t
 
 import click
-from glom import glom
 import httpx
 import orjson as json
+from glom import glom
 from rich.text import Text
 
-from gptcomet.styles import Colors, stylize
+from gptcomet.styles import Colors
 from gptcomet.utils import console
 
 try:
@@ -106,7 +107,6 @@ class LLMClient:
         # Completion_with_retries returns a dictionary with the response and metadata
         # Could raise BadRequestError error
         response = self.completion_with_retries(**params)
-        logger.debug(f"Response: {response}")
         usage = response.get("usage", {})
 
         assistant_message: str = glom(response, self.content_path, default="").strip()
@@ -213,11 +213,11 @@ class LLMClient:
         client_params = {"transport": transport}
         if self.proxy:
             client_params["proxies"] = self.proxy
+            logger.debug(f"Using proxy: {self.proxy}")
         client = httpx.Client(**client_params)
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
         payload = {
-            "api_base": api_base,
             "model": model,
             "messages": messages,
             "max_tokens": max_tokens,
@@ -241,5 +241,12 @@ class LLMClient:
             json=payload,
             headers=headers,
         )
+        if logger.level == logging.DEBUG:
+            text = response.text
+            try:
+                j = json.loads(text)
+            except json.JSONDecodeError:
+                j = text
+            logger.debug(f"completion response: {j}")
         response.raise_for_status()
         return response.json()
